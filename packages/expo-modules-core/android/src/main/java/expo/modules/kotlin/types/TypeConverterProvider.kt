@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalStdlibApi::class)
-
 package expo.modules.kotlin.types
 
 import android.graphics.Color
@@ -8,7 +6,7 @@ import android.view.View
 import com.facebook.react.bridge.Dynamic
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
-import expo.modules.annotation.Config
+import expo.modules.core.arguments.ReadableArguments
 import expo.modules.kotlin.apifeatures.EitherType
 import expo.modules.kotlin.exception.MissingTypeConverter
 import expo.modules.kotlin.jni.CppType
@@ -20,6 +18,8 @@ import expo.modules.kotlin.records.Record
 import expo.modules.kotlin.records.RecordTypeConverter
 import expo.modules.kotlin.sharedobjects.SharedObject
 import expo.modules.kotlin.sharedobjects.SharedObjectTypeConverter
+import expo.modules.kotlin.sharedobjects.SharedRef
+import expo.modules.kotlin.sharedobjects.SharedRefTypeConverter
 import expo.modules.kotlin.typedarray.BigInt64Array
 import expo.modules.kotlin.typedarray.BigUint64Array
 import expo.modules.kotlin.typedarray.Float32Array
@@ -42,10 +42,11 @@ import java.io.File
 import java.net.URI
 import java.net.URL
 import java.nio.file.Path
+import java.time.LocalDate
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
-import kotlin.reflect.full.isSubclassOf
 import kotlin.reflect.typeOf
+import kotlin.time.Duration
 
 interface TypeConverterProvider {
   fun obtainTypeConverter(type: KType): TypeConverter<*>
@@ -75,8 +76,7 @@ object TypeConverterProviderImpl : TypeConverterProvider {
   private val cachedConverters = createCachedConverters(false)
   private val nullableCachedConverters = createCachedConverters(true)
 
-  private val cachedRecordConverters = mutableMapOf<KClass<*>, TypeConverter<*>>()
-  private val cachedCustomConverters = mutableMapOf<KType, TypeConverter<*>>()
+  private val cachedRecordConverters = mutableMapOf<KType, TypeConverter<*>>()
 
   private fun getCachedConverter(inputType: KType): TypeConverter<*>? {
     return if (inputType.isMarkedNullable) {
@@ -92,67 +92,71 @@ object TypeConverterProviderImpl : TypeConverterProvider {
     }
 
     val kClass = type.classifier as? KClass<*> ?: throw MissingTypeConverter(type)
+    val jClass = kClass.java
 
-    if (kClass.java.isArray) {
+    if (jClass.isArray || Array::class.java.isAssignableFrom(jClass)) {
       return ArrayTypeConverter(this, type)
     }
 
-    if (kClass.isSubclassOf(List::class)) {
+    if (List::class.java.isAssignableFrom(jClass)) {
       return ListTypeConverter(this, type)
     }
 
-    if (kClass.isSubclassOf(Map::class)) {
+    if (Map::class.java.isAssignableFrom(jClass)) {
       return MapTypeConverter(this, type)
     }
 
-    if (kClass.isSubclassOf(Pair::class)) {
+    if (Pair::class.java.isAssignableFrom(jClass)) {
       return PairTypeConverter(this, type)
     }
 
-    if (kClass.isSubclassOf(Array::class)) {
-      return ArrayTypeConverter(this, type)
+    if (Set::class.java.isAssignableFrom(jClass)) {
+      return SetTypeConverter(this, type)
     }
 
-    if (kClass.java.isEnum) {
+    if (jClass.isEnum) {
       @Suppress("UNCHECKED_CAST")
       return EnumTypeConverter(kClass as KClass<Enum<*>>, type.isMarkedNullable)
     }
 
-    val cachedConverter = cachedRecordConverters[kClass]
+    val cachedConverter = cachedRecordConverters[type]
     if (cachedConverter != null) {
       return cachedConverter
     }
 
-    if (kClass.isSubclassOf(Record::class)) {
+    if (Record::class.java.isAssignableFrom(jClass)) {
       val converter = RecordTypeConverter<Record>(this, type)
-      cachedRecordConverters[kClass] = converter
+      cachedRecordConverters[type] = converter
       return converter
     }
 
-    if (kClass.isSubclassOf(View::class)) {
+    if (View::class.java.isAssignableFrom(jClass)) {
       return ViewTypeConverter<View>(type)
     }
 
-    if (kClass.isSubclassOf(SharedObject::class)) {
+    if (SharedRef::class.java.isAssignableFrom(jClass)) {
+      return SharedRefTypeConverter<SharedRef<*>>(type)
+    }
+
+    if (SharedObject::class.java.isAssignableFrom(jClass)) {
       return SharedObjectTypeConverter<SharedObject>(type)
     }
 
-    if (kClass.isSubclassOf(JavaScriptFunction::class)) {
+    if (JavaScriptFunction::class.java.isAssignableFrom(jClass)) {
       return JavaScriptFunctionTypeConverter<Any>(type)
     }
 
-    return handelEither(type, kClass)
-      ?: handelCustomConverter(type, kClass)
+    return handelEither(type, jClass)
       ?: throw MissingTypeConverter(type)
   }
 
   @OptIn(EitherType::class)
-  private fun handelEither(type: KType, kClass: KClass<*>): TypeConverter<*>? {
-    if (kClass.isSubclassOf(Either::class)) {
-      if (kClass.isSubclassOf(EitherOfFour::class)) {
+  private fun handelEither(type: KType, jClass: Class<*>): TypeConverter<*>? {
+    if (Either::class.java.isAssignableFrom(jClass)) {
+      if (EitherOfFour::class.java.isAssignableFrom(jClass)) {
         return EitherOfFourTypeConverter<Any, Any, Any, Any>(this, type)
       }
-      if (kClass.isSubclassOf(EitherOfThree::class)) {
+      if (EitherOfThree::class.java.isAssignableFrom(jClass)) {
         return EitherOfThreeTypeConverter<Any, Any, Any>(this, type)
       }
       return EitherTypeConverter<Any, Any>(this, type)
@@ -161,44 +165,26 @@ object TypeConverterProviderImpl : TypeConverterProvider {
     return null
   }
 
-  private fun handelCustomConverter(type: KType, kClass: KClass<*>): TypeConverter<*>? {
-    val cachedConverter = cachedCustomConverters[type]
-    if (cachedConverter != null) {
-      return cachedConverter
-    }
-
-    val typeName = kClass.java.canonicalName ?: return null
-
-    val converterProviderName = "${Config.packageNamePrefix}$typeName${Config.classNameSuffix}"
-    return try {
-      val converterClazz = Class.forName(converterProviderName)
-      val converterProvider = converterClazz.newInstance()
-      val method = converterProvider.javaClass.getMethod(Config.converterProviderFunctionName, KType::class.java)
-
-      (method.invoke(converterProvider, type) as TypeConverter<*>)
-        .also {
-          cachedCustomConverters[type] = it
-        }
-    } catch (e: Throwable) {
-      null
-    }
-  }
-
   private fun createCachedConverters(isOptional: Boolean): Map<KClass<*>, TypeConverter<*>> {
     val intTypeConverter = createTrivialTypeConverter(
-      isOptional, ExpectedType(CppType.INT)
+      isOptional,
+      ExpectedType(CppType.INT)
     ) { it.asDouble().toInt() }
     val longTypeConverter = createTrivialTypeConverter(
-      isOptional, ExpectedType(CppType.LONG)
+      isOptional,
+      ExpectedType(CppType.LONG)
     ) { it.asDouble().toLong() }
     val doubleTypeConverter = createTrivialTypeConverter(
-      isOptional, ExpectedType(CppType.DOUBLE)
+      isOptional,
+      ExpectedType(CppType.DOUBLE)
     ) { it.asDouble() }
     val floatTypeConverter = createTrivialTypeConverter(
-      isOptional, ExpectedType(CppType.FLOAT)
+      isOptional,
+      ExpectedType(CppType.FLOAT)
     ) { it.asDouble().toFloat() }
     val boolTypeConverter = createTrivialTypeConverter(
-      isOptional, ExpectedType(CppType.BOOLEAN)
+      isOptional,
+      ExpectedType(CppType.BOOLEAN)
     ) { it.asBoolean() }
 
     val converters = mapOf(
@@ -236,6 +222,14 @@ object TypeConverterProviderImpl : TypeConverterProvider {
           jsArray.getInt(index)
         }
       },
+      LongArray::class to createTrivialTypeConverter(
+        isOptional, ExpectedType.forPrimitiveArray(CppType.LONG)
+      ) {
+        val jsArray = it.asArray()
+        LongArray(jsArray.size()) { index ->
+          jsArray.getDouble(index).toLong()
+        }
+      },
       DoubleArray::class to createTrivialTypeConverter(
         isOptional, ExpectedType.forPrimitiveArray(CppType.DOUBLE)
       ) {
@@ -260,6 +254,7 @@ object TypeConverterProviderImpl : TypeConverterProvider {
           jsArray.getBoolean(index)
         }
       },
+      ByteArray::class to ByteArrayTypeConverter(isOptional),
 
       JavaScriptValue::class to createTrivialTypeConverter(
         isOptional, ExpectedType(CppType.JS_VALUE)
@@ -287,16 +282,49 @@ object TypeConverterProviderImpl : TypeConverterProvider {
 
       File::class to FileTypeConverter(isOptional),
 
+      Duration::class to DurationTypeConverter(isOptional),
+
       Any::class to AnyTypeConverter(isOptional),
+
+      // Unit converter doesn't care about nullability.
+      // It will always return Unit
+      Unit::class to UnitTypeConverter(),
+
+      ReadableArguments::class to ReadableArgumentsTypeConverter(isOptional)
     )
 
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
       return converters + mapOf(
         Path::class to PathTypeConverter(isOptional),
         Color::class to ColorTypeConverter(isOptional),
+        LocalDate::class to DateTypeConverter(isOptional)
       )
     }
 
     return converters
   }
+}
+
+class MergedTypeConverterProvider(
+  private val providers: List<TypeConverterProvider>
+) : TypeConverterProvider {
+  override fun obtainTypeConverter(type: KType): TypeConverter<*> {
+    for (provider in providers) {
+      try {
+        return provider.obtainTypeConverter(type)
+      } catch (_: MissingTypeConverter) {
+        // Ignore and try next provider
+      }
+    }
+
+    throw MissingTypeConverter(type)
+  }
+}
+
+fun TypeConverterProvider.mergeWith(otherProvider: TypeConverterProvider): TypeConverterProvider {
+  return MergedTypeConverterProvider(listOf(this, otherProvider))
+}
+
+fun TypeConverterProvider?.mergeWithDefault(): TypeConverterProvider {
+  return this?.mergeWith(TypeConverterProviderImpl) ?: TypeConverterProviderImpl
 }

@@ -1,5 +1,5 @@
 import { requireNativeModule } from 'expo-modules-core';
-import { DeviceEventEmitter, EventSubscription } from 'react-native';
+import { Alert, DeviceEventEmitter, EventSubscription } from 'react-native';
 
 export type JSEngine = 'Hermes' | 'JSC' | 'V8';
 
@@ -14,11 +14,9 @@ export type AppInfo = {
 };
 
 export type DevSettings = {
-  isDebuggingRemotely?: boolean;
   isElementInspectorShown?: boolean;
   isHotLoadingEnabled?: boolean;
   isPerfMonitorShown?: boolean;
-  isRemoteDebuggingAvailable?: boolean;
   isElementInspectorAvailable?: boolean;
   isHotLoadingAvailable?: boolean;
   isPerfMonitorAvailable?: boolean;
@@ -30,13 +28,6 @@ export type MenuPreferences = {
 };
 
 const DevMenu = requireNativeModule('ExpoDevMenuInternal');
-
-export async function dispatchCallableAsync(
-  callableId: string,
-  args: object | null = null
-): Promise<void> {
-  return await DevMenu.dispatchCallableAsync(callableId, args);
-}
 
 export function hideMenu(): void {
   DevMenu.hideMenu();
@@ -59,27 +50,23 @@ export function openDevMenuFromReactNative() {
 }
 
 export async function togglePerformanceMonitorAsync() {
-  return await dispatchCallableAsync('performance-monitor');
+  return await DevMenu.togglePerformanceMonitor();
 }
 
 export async function toggleElementInspectorAsync() {
-  return await dispatchCallableAsync('inspector');
+  return await DevMenu.toggleInspector();
 }
 
 export async function reloadAsync() {
-  return await dispatchCallableAsync('reload');
-}
-
-export async function toggleDebugRemoteJSAsync() {
-  return await dispatchCallableAsync('remote-debug');
+  return await DevMenu.reload();
 }
 
 export async function toggleFastRefreshAsync() {
-  return await dispatchCallableAsync('fast-refresh');
+  return await DevMenu.toggleFastRefresh();
 }
 
 export async function openJSInspector() {
-  return await dispatchCallableAsync('js-inspector');
+  return await DevMenu.openJSInspector();
 }
 
 export async function copyToClipboardAsync(content: string) {
@@ -95,5 +82,8 @@ export async function loadFontsAsync() {
 }
 
 export async function fireCallbackAsync(name: string) {
-  return await DevMenu.fireCallback(name).catch((error) => console.warn(error.message));
+  return await DevMenu.fireCallback(name).catch((error) => {
+    console.warn(error.message);
+    Alert.alert('Error', error.message);
+  });
 }

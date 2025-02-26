@@ -1,13 +1,26 @@
 import { CSSProperties, SyntheticEvent } from 'react';
 
-import { ImageContentPositionObject, ImageSource } from '../Image.types';
 import { SrcSetSource } from './useSourceSelection';
+import { ImageContentPositionObject, ImageProps, ImageSource } from '../Image.types';
+
+export type OnErrorEvent =
+  | (({ source }: { source: ImageSource | null }) => void)
+  | undefined
+  | null;
+export type OnLoadEvent =
+  | ((event: SyntheticEvent<HTMLImageElement, Event>) => void)
+  | undefined
+  | null;
+export type OnTransitionEndEvent = (() => void) | undefined | null;
+export type OnMountEvent = (() => void) | undefined | null;
+export type OnDisplayEvent = (() => void) | undefined | null;
 
 export type ImageWrapperEvents = {
-  onLoad?: (((event: SyntheticEvent<HTMLImageElement, Event>) => void) | undefined | null)[];
-  onError?: ((({ source }: { source: ImageSource | null }) => void) | undefined | null)[];
-  onTransitionEnd?: ((() => void) | undefined | null)[];
-  onMount?: ((() => void) | undefined | null)[];
+  onLoad?: OnLoadEvent[];
+  onError?: OnErrorEvent[];
+  onTransitionEnd?: OnTransitionEndEvent[];
+  onMount?: OnMountEvent[];
+  onDisplay?: OnDisplayEvent[];
 };
 
 export type ImageWrapperProps = {
@@ -21,4 +34,5 @@ export type ImageWrapperProps = {
   hashPlaceholderStyle?: CSSProperties;
   className?: string;
   accessibilityLabel?: string;
+  cachePolicy?: ImageProps['cachePolicy'];
 };

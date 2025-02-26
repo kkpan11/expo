@@ -3,8 +3,6 @@
 // this uses abstract class patterns
 // swiftlint:disable unavailable_function
 
-// swiftlint:disable type_body_length file_length
-
 import Foundation
 import UIKit
 
@@ -121,11 +119,11 @@ public class Manifest: NSObject {
     preconditionFailure("Must override in concrete class")
   }
 
-  func expoGoConfigRootObject() -> [String: Any]? {
+  public func expoGoConfigRootObject() -> [String: Any]? {
     preconditionFailure("Must override in concrete class")
   }
 
-  func expoClientConfigRootObject() -> [String: Any]? {
+  public func expoClientConfigRootObject() -> [String: Any]? {
     preconditionFailure("Must override in concrete class")
   }
 
@@ -202,10 +200,6 @@ public class Manifest: NSObject {
     return expoGoConfigRootObject()?.optionalValue(forKey: "developer")
   }
 
-  public func logUrl() -> String? {
-    return expoGoConfigRootObject()?.optionalValue(forKey: "logUrl")
-  }
-
   public func facebookAppId() -> String? {
     return expoClientConfigRootObject()?.optionalValue(forKey: "facebookAppId")
   }
@@ -273,6 +267,12 @@ public class Manifest: NSObject {
     }
   }
 
+  public func iosAppIconUrl() -> String? {
+    return expoClientConfigRootObject().let { it in
+      Manifest.string(fromManifest: it, atPath: ["iconUrl"])
+    }
+  }
+
   public func iosSplashImageUrl() -> String? {
     return expoClientConfigRootObject().let { it in
       Manifest.string(fromManifest: it, atPaths: [
@@ -307,6 +307,16 @@ public class Manifest: NSObject {
     return supportsRTL
   }
 
+  public func forcesRTL() -> Bool {
+    guard let expoClientConfigRootObject = expoClientConfigRootObject(),
+      let extra: [String: Any]? = expoClientConfigRootObject.optionalValue(forKey: "extra"),
+      let forcesRTL: Bool = extra?.optionalValue(forKey: "forcesRTL") else {
+      return false
+    }
+
+    return forcesRTL
+  }
+
   public func jsEngine() -> String {
     let jsEngine = expoClientConfigRootObject().let { it in
       Manifest.string(fromManifest: it, atPaths: [
@@ -319,9 +329,8 @@ public class Manifest: NSObject {
       let sdkMajorVersion = expoGoSDKMajorVersion()
       if sdkMajorVersion > 0 && sdkMajorVersion < 48 {
         return "jsc"
-      } else {
-        return "hermes"
       }
+      return "hermes"
     }
     return jsEngine
   }
@@ -341,8 +350,14 @@ public class Manifest: NSObject {
           return nil
         }
         if let valueArray = value as? [Any],
-          let name = valueArray[0] as? String, let props = valueArray[1] as? [String: Any] {
-          return .withProps((name, props))
+          let name = valueArray[0] as? String {
+          if valueArray.count > 1 {
+            guard let props = valueArray[1] as? [String: Any] else {
+              return .withoutProps((name))
+            }
+            return .withProps((name, props))
+          }
+          return .withoutProps((name))
         }
         if let value = value as? String {
           return .withoutProps(value)
@@ -415,3 +430,5 @@ public class Manifest: NSObject {
     return nil
   }
 }
+
+// swiftlint:enable unavailable_function

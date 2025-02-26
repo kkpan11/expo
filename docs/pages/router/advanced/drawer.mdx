@@ -1,14 +1,13 @@
 ---
 title: Drawer
 description: Learn how to use the Drawer layout in Expo Router.
-hideTOC: true
 ---
 
-import { BoxLink } from '~/ui/components/BoxLink';
-import { BookOpen02Icon } from '@expo/styleguide-icons';
 import { Terminal } from '~/ui/components/Snippet';
 
 To use [drawer navigator](https://reactnavigation.org/docs/drawer-based-navigation) you'll need to install some extra dependencies.
+
+## Installation
 
 <Terminal
   cmd={[
@@ -16,36 +15,53 @@ To use [drawer navigator](https://reactnavigation.org/docs/drawer-based-navigati
   ]}
 />
 
-Next, you'll need to update your **babel.config.js** to include the reanimated plugin:
+No additional configuration is required. [Reanimated Babel plugin](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/glossary#reanimated-babel-plugin) is automatically configured in `babel-preset-expo` when you install the library.
 
-{/* prettier-ignore */}
-```js babel.config.js
-module.exports = {
-  presets: [
-      /* @hide ... */ /* @end */
-    ],
-    plugins: [
-      /* @hide ... */ /* @end */
-      'react-native-reanimated/plugin',
-    ],
-};
-```
+## Usage
 
-> After changing your `babel.config.js`, once run `npx expo start --clear` to start the development server and clear the babel cache.
-> Now you can use the `Drawer` layout to create a drawer navigator:
+Now you can use the `Drawer` layout to create a drawer navigator. You'll need to wrap the `<Drawer />` in a `<GestureHandlerRootView>` to enable gestures. You only need one `<GestureHandlerRootView>` in your component tree. Any nested routes are not required to be wrapped individually.
 
-```js app/_layout.js
+```tsx app/_layout.tsx
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Drawer } from 'expo-router/drawer';
+
 export default function Layout() {
-  return <Drawer />;
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Drawer />
+    </GestureHandlerRootView>
+  );
 }
 ```
 
-## Next steps
+To edit the drawer navigation menu labels, titles and screen options specific screens are required as follows:
 
-<BoxLink
-  title="Nesting navigators"
-  Icon={BookOpen02Icon}
-  description="Learn how to nest navigators in Expo Router."
-  href="/router/advanced/nesting-navigators/"
-/>
+```tsx app/_layout.tsx
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Drawer } from 'expo-router/drawer';
+
+export default function Layout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Drawer>
+        <Drawer.Screen
+          name="index" // This is the name of the page and must match the url from root
+          options={{
+            drawerLabel: 'Home',
+            title: 'overview',
+          }}
+        />
+        <Drawer.Screen
+          name="user/[id]" // This is the name of the page and must match the url from root
+          options={{
+            drawerLabel: 'User',
+            title: 'overview',
+          }}
+        />
+      </Drawer>
+    </GestureHandlerRootView>
+  );
+}
+```
+
+> **Note:** Be careful when using `react-native-gesture-handler` on the web. It can increase the JavaScript bundle size significantly. Learn more about using [platform-specific modules](/router/advanced/platform-specific-modules/).

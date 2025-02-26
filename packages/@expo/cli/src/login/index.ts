@@ -29,14 +29,13 @@ export const expoLogin: Command = async (argv) => {
         `-u, --username <string>  Username`,
         `-p, --password <string>  Password`,
         `--otp <string>           One-time password from your 2FA device`,
-        // hiding from help until SSO is public
-        // `-s, --sso                Log in with SSO`,
+        `-s, --sso                Log in with SSO`,
         `-h, --help               Usage info`,
       ].join('\n')
     );
   }
 
-  const { showLoginPromptAsync } = await import('../api/user/actions');
+  const { showLoginPromptAsync } = await import('../api/user/actions.js');
   return showLoginPromptAsync({
     // Parsed options
     username: args['--username'],

@@ -1,3 +1,4 @@
+import { lightTheme } from '@expo/styleguide-native';
 import {
   View,
   WarningIcon,
@@ -21,14 +22,13 @@ import {
 } from 'expo-dev-client-components';
 import * as React from 'react';
 import { Platform, ScrollView, Switch } from 'react-native';
-import semver from 'semver';
 
+import { Onboarding } from './Onboarding';
 import { useAppInfo } from '../hooks/useAppInfo';
 import { useClipboard } from '../hooks/useClipboard';
 import { useDevSettings } from '../hooks/useDevSettings';
 import { isDevLauncherInstalled } from '../native-modules/DevLauncher';
 import { hideMenu, fireCallbackAsync } from '../native-modules/DevMenu';
-import { Onboarding } from './Onboarding';
 
 type MainProps = {
   registeredCallbacks?: string[];
@@ -43,30 +43,24 @@ export function Main({ registeredCallbacks = [], isDevice }: MainProps) {
   const appInfoClipboard = useClipboard();
 
   function onCopyUrlPress() {
-    const { hostUrl } = appInfo;
-    urlClipboard.onCopyPress(hostUrl);
+    if (appInfo?.hostUrl) {
+      urlClipboard.onCopyPress(appInfo.hostUrl);
+    }
   }
 
   function onCopyAppInfoPress() {
-    const { runtimeVersion, sdkVersion, appName, appVersion } = appInfo;
+    const { runtimeVersion, sdkVersion, appName, appVersion } = appInfo || {};
     appInfoClipboard.onCopyPress({ runtimeVersion, sdkVersion, appName, appVersion });
   }
 
   const hasCopiedAppInfoContent = Boolean(appInfoClipboard.clipboardContent);
 
-  const {
-    isElementInspectorAvailable,
-    isHotLoadingAvailable,
-    isPerfMonitorAvailable,
-    isRemoteDebuggingAvailable,
-  } = devSettings;
+  const { isElementInspectorAvailable, isHotLoadingAvailable, isPerfMonitorAvailable } =
+    devSettings;
   const hasDisabledDevSettingOption =
-    [
-      isElementInspectorAvailable,
-      isHotLoadingAvailable,
-      isPerfMonitorAvailable,
-      isRemoteDebuggingAvailable,
-    ].filter((value) => value === false).length > 0;
+    [isElementInspectorAvailable, isHotLoadingAvailable, isPerfMonitorAvailable].filter(
+      (value) => value === false
+    ).length > 0;
 
   return (
     <View flex="1" bg="secondary">
@@ -76,9 +70,9 @@ export function Main({ registeredCallbacks = [], isDevice }: MainProps) {
           <Row align="center" shrink="1">
             <View>
               <View height="xl" width="xl" overflow="hidden" bg="secondary" rounded="medium">
-                {Boolean(appInfo.appIcon) && (
+                {Boolean(appInfo?.appIcon) && (
                   <Image
-                    source={{ uri: appInfo.appIcon }}
+                    source={{ uri: appInfo?.appIcon }}
                     style={{ flex: 1, resizeMode: 'contain' }}
                   />
                 )}
@@ -90,22 +84,22 @@ export function Main({ registeredCallbacks = [], isDevice }: MainProps) {
             <View shrink="1">
               <Row style={{ flexWrap: 'wrap' }}>
                 <Heading weight="bold" numberOfLines={1}>
-                  {appInfo.appName}
+                  {appInfo?.appName}
                 </Heading>
               </Row>
 
-              {Boolean(appInfo.runtimeVersion) && (
+              {Boolean(appInfo?.runtimeVersion) && (
                 <>
                   <Text size="small" color="secondary">
-                    {`Runtime version: ${appInfo.runtimeVersion}`}
+                    {`Runtime version: ${appInfo?.runtimeVersion}`}
                   </Text>
                 </>
               )}
 
-              {Boolean(appInfo.sdkVersion) && !appInfo.runtimeVersion && (
+              {Boolean(appInfo?.sdkVersion) && !appInfo?.runtimeVersion && (
                 <>
                   <Text size="small" color="secondary">
-                    {`SDK version: ${appInfo.sdkVersion}`}
+                    {`SDK version: ${appInfo?.sdkVersion}`}
                   </Text>
                 </>
               )}
@@ -129,52 +123,34 @@ export function Main({ registeredCallbacks = [], isDevice }: MainProps) {
       <Divider />
       <View style={{ flex: 1 }}>
         <ScrollView nestedScrollEnabled>
-          {Boolean(appInfo.hostUrl) && (
+          {Boolean(appInfo?.hostUrl) && (
             <>
               <View bg="default" padding="medium">
                 <Text color="secondary">Connected to:</Text>
 
                 <Spacer.Vertical size="small" />
+                <Button.FadeOnPressContainer
+                  bg="default"
+                  onPress={onCopyUrlPress}
+                  testID="main.copyUrlButton">
+                  <Row align="center">
+                    <StatusIndicator style={{ width: 10, height: 10 }} status="success" />
+                    <Spacer.Horizontal size="small" />
+                    <Row flex="1" justify="between">
+                      <Text type="mono" numberOfLines={2} size="small">
+                        {appInfo?.hostUrl}
+                      </Text>
 
-                <Row align="center">
-                  <StatusIndicator style={{ width: 10, height: 10 }} status="success" />
-                  <Spacer.Horizontal size="small" />
-                  <View flex="1">
-                    <Text type="mono" numberOfLines={2} size="small">
-                      {appInfo.hostUrl}
-                    </Text>
-                  </View>
-                  <Spacer.Horizontal size="small" />
-                </Row>
+                      <ClipboardIcon />
+                    </Row>
+                    <Spacer.Horizontal size="small" />
+                  </Row>
+                </Button.FadeOnPressContainer>
               </View>
 
               <Divider />
             </>
           )}
-
-          <Row padding="small">
-            {isDevLauncherInstalled && (
-              <View flex="1">
-                <ActionButton
-                  icon={<HomeFilledIcon />}
-                  label="Go home"
-                  onPress={actions.navigateToLauncher}
-                />
-              </View>
-            )}
-
-            <Spacer.Horizontal size="medium" />
-
-            <View flex="1">
-              <ActionButton icon={<ClipboardIcon />} label="Copy link" onPress={onCopyUrlPress} />
-            </View>
-
-            <Spacer.Horizontal size="medium" />
-
-            <View flex="1">
-              <ActionButton icon={<RefreshIcon />} label="Reload" onPress={actions.reload} />
-            </View>
-          </Row>
 
           {registeredCallbacks.length > 0 && (
             <View>
@@ -210,8 +186,28 @@ export function Main({ registeredCallbacks = [], isDevice }: MainProps) {
             </View>
           )}
 
+          <View margin="small">
+            <View
+              {...(isDevLauncherInstalled ? { roundedTop: 'large' } : { rounded: 'large' })}
+              bg="default">
+              <SettingsRowButton label="Reload" icon={<RefreshIcon />} onPress={actions.reload} />
+            </View>
+            {isDevLauncherInstalled && (
+              <>
+                <Divider />
+                <View roundedBottom="large" bg="default">
+                  <SettingsRowButton
+                    label="Go home"
+                    icon={<HomeFilledIcon tintColor={lightTheme.icon.default} />}
+                    onPress={actions.navigateToLauncher}
+                  />
+                </View>
+              </>
+            )}
+          </View>
+
           <View mx="small">
-            <View roundedTop="large" bg="default">
+            <View bg="default" roundedTop="large">
               <SettingsRowButton
                 disabled={!devSettings.isPerfMonitorAvailable}
                 label="Toggle performance monitor"
@@ -229,35 +225,13 @@ export function Main({ registeredCallbacks = [], isDevice }: MainProps) {
               />
             </View>
             <Divider />
-            {devSettings.isJSInspectorAvailable ? (
+            {devSettings.isJSInspectorAvailable && (
               <View bg="default">
                 <SettingsRowButton
                   disabled={!devSettings.isJSInspectorAvailable}
                   label="Open JS debugger"
                   icon={<DebugIcon />}
                   onPress={actions.openJSInspector}
-                />
-              </View>
-            ) : (
-              <View bg="default">
-                <SettingsRowSwitch
-                  disabled={
-                    appInfo?.sdkVersion && semver.lt(appInfo.sdkVersion, '49.0.0')
-                      ? !devSettings.isRemoteDebuggingAvailable
-                      : true
-                  }
-                  testID="remote-js-debugger"
-                  label="Remote JS debugger"
-                  icon={<DebugIcon />}
-                  isEnabled={devSettings.isDebuggingRemotely}
-                  setIsEnabled={actions.toggleDebugRemoteJS}
-                  description={
-                    !appInfo?.sdkVersion || semver.lt(appInfo.sdkVersion, '49.0.0')
-                      ? `This is not compatible with ${
-                          appInfo?.engine ?? 'JSC'
-                        } in this SDK version, please use Hermes to debug.`
-                      : undefined
-                  }
                 />
               </View>
             )}
@@ -274,7 +248,7 @@ export function Main({ registeredCallbacks = [], isDevice }: MainProps) {
             </View>
           </View>
 
-          {appInfo.engine === 'Hermes' && (
+          {appInfo?.engine === 'Hermes' && (
             <>
               <Spacer.Vertical size="large" />
 
@@ -314,18 +288,18 @@ export function Main({ registeredCallbacks = [], isDevice }: MainProps) {
           <Spacer.Vertical size="large" />
 
           <View mx="small" rounded="large" overflow="hidden">
-            <AppInfoRow title="Version" value={appInfo.appVersion} />
+            <AppInfoRow title="Version" value={appInfo?.appVersion || 'Unknown'} />
             <Divider />
-            {Boolean(appInfo.runtimeVersion) && (
+            {Boolean(appInfo?.runtimeVersion) && (
               <>
-                <AppInfoRow title="Runtime version" value={appInfo.runtimeVersion} />
+                <AppInfoRow title="Runtime version" value={appInfo?.runtimeVersion || 'Unknown'} />
                 <Divider />
               </>
             )}
 
-            {Boolean(appInfo.sdkVersion) && !appInfo.runtimeVersion && (
+            {Boolean(appInfo?.sdkVersion) && !appInfo?.runtimeVersion && (
               <>
-                <AppInfoRow title="SDK Version" value={appInfo.sdkVersion} />
+                <AppInfoRow title="SDK Version" value={appInfo?.sdkVersion || 'Unknown'} />
                 <Divider />
               </>
             )}
@@ -367,30 +341,8 @@ export function Main({ registeredCallbacks = [], isDevice }: MainProps) {
   );
 }
 
-type ActionButtonProps = {
-  icon: React.ReactElement<any>;
-  label: string;
-  onPress: () => void;
-};
-
-function ActionButton({ icon, label, onPress }: ActionButtonProps) {
-  return (
-    <Button.FadeOnPressContainer bg="default" onPress={onPress}>
-      <View padding="small" rounded="large" bg="default">
-        <View align="centered">{icon}</View>
-
-        <Spacer.Vertical size="tiny" />
-
-        <Text size="small" align="center">
-          {label}
-        </Text>
-      </View>
-    </Button.FadeOnPressContainer>
-  );
-}
-
 type SettingsRowButtonProps = {
-  icon: React.ReactElement<any>;
+  icon: React.ReactElement<any> | null;
   label: string;
   description?: string;
   onPress: () => void;
@@ -515,10 +467,14 @@ type AppInfoRowProps = {
 
 function AppInfoRow({ title, value }: AppInfoRowProps) {
   return (
-    <Row px="medium" py="small" align="center" bg="default">
+    <Row px="medium" py="small" align="center" bg="default" justify="between" flex="1">
       <Text size="medium">{title}</Text>
-      <Spacer.Horizontal />
-      <Text>{value}</Text>
+      <Spacer.Horizontal size="small" />
+      <View style={{ flex: 1, alignItems: 'flex-end' }}>
+        <Text size="medium" numberOfLines={2}>
+          {value}
+        </Text>
+      </View>
     </Row>
   );
 }

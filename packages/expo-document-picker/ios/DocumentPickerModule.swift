@@ -116,7 +116,7 @@ public class DocumentPickerModule: Module, PickingResultHandler {
       throw Exceptions.FileSystemModuleNotFound()
     }
 
-    guard let fileSize = try? getFileSize(path: documentUrl) else {
+    guard let fileSize = getFileSize(path: documentUrl) else {
       throw InvalidFileException()
     }
 
@@ -130,7 +130,7 @@ public class DocumentPickerModule: Module, PickingResultHandler {
       try FileManager.default.copyItem(at: documentUrl, to: newUrl)
     }
 
-    let mimeType = self.getMimeType(from: documentUrl.pathExtension)
+    let mimeType = self.getMimeType(from: documentUrl.pathExtension) ?? "application/octet-stream"
 
     return DocumentInfo(
       uri: newUrl.absoluteString,
@@ -164,7 +164,7 @@ public class DocumentPickerModule: Module, PickingResultHandler {
     case "image/*":
       return UTType.image
     case "video/*":
-      return UTType.video
+      return UTType.movie
     case "audio/*":
       return UTType.audio
     case "text/*":

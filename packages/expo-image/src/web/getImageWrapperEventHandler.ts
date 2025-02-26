@@ -1,5 +1,6 @@
-import { ImageSource } from '../Image.types';
 import { ImageWrapperEvents } from './ImageWrapper.types';
+import { ImageSource } from '../Image.types';
+import { isBlurhashString } from '../utils/resolveSources';
 
 export function getImageWrapperEventHandler(
   events: ImageWrapperEvents | undefined,
@@ -7,16 +8,22 @@ export function getImageWrapperEventHandler(
 ) {
   return {
     onLoad: (event) => {
+      events?.onLoad?.forEach((e) => e?.(event));
+
       if (typeof window !== 'undefined') {
-        // this ensures the animation will run, since the starting class is applied at least 1 frame before the target class set in the onLoad event callback
+        // On Web there is no way to detect when the image gets displayed, but we can assume it happens on the repaint right after the image is successfully loaded.
         window.requestAnimationFrame(() => {
-          events?.onLoad?.forEach((e) => e?.(event));
+          events?.onDisplay?.forEach((e) => e?.());
         });
-      } else {
-        events?.onLoad?.forEach((e) => e?.(event));
       }
     },
     onTransitionEnd: () => events?.onTransitionEnd?.forEach((e) => e?.()),
-    onError: () => events?.onError?.forEach((e) => e?.({ source: source || null })),
+    onError: () => {
+      // A temporary workaround for blurhash blobs throwing opaque errors when used in an img tag.
+      if (source?.uri && isBlurhashString(source?.uri)) {
+        return;
+      }
+      events?.onError?.forEach((e) => e?.({ source: source || null }));
+    },
   };
 }
